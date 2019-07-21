@@ -1,8 +1,8 @@
 package com.spark
 
-import org.apache.spark.ml.classification.LogisticRegression
-import org.apache.spark.ml.feature.{Binarizer, HashingTF, IDF, RegexTokenizer, StopWordsRemover, Tokenizer}
-import org.apache.spark.mllib.evaluation.{BinaryClassificationMetrics, MulticlassMetrics, MultilabelMetrics}
+import org.apache.spark.ml.classification.{LogisticRegression, LogisticRegressionModel}
+import org.apache.spark.ml.feature.{Binarizer, HashingTF, IDF, RegexTokenizer, StopWordsRemover}
+import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object Job {
@@ -10,9 +10,10 @@ object Job {
   def main(args: Array[String]): Unit = {
     val path = Config.path
     val spark = initSparkSession()
-    val df = loadData(spark, path)
+    val dataFrame = loadData(spark, path)
 
     //print statistics about data sets and class distributions
+    println(dataFrame.select())
 
     val tokenizer = new RegexTokenizer()
       .setPattern("[\\W_]+")
@@ -21,7 +22,7 @@ object Job {
       .setInputCol("text")
       .setOutputCol("tokenized")
 
-    val tokenizedDF = tokenizer.transform(df)
+    val tokenizedDF = tokenizer.transform(dataFrame)
 
     val englishStopWords = StopWordsRemover.loadDefaultStopWords("english")
     val stops = new StopWordsRemover()
@@ -94,4 +95,15 @@ object Job {
     finalDF
   }
 
+  def describe(sparkSession: SparkSession, dataFrame: DataFrame): Unit = ???
+
+  def tokenize(dataFrame: DataFrame): DataFrame = ???
+
+  def vectorize(dataFrame: DataFrame): DataFrame = ???
+
+  def trainModel(lr: LogisticRegression, dataFrame: DataFrame): LogisticRegressionModel = ???
+
+  def metrics(fittedLR: LogisticRegressionModel): Unit = ???
+  
 }
+
