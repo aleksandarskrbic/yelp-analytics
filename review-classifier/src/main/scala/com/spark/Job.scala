@@ -1,72 +1,27 @@
 package com.spark
 
-import org.apache.spark.ml.classification.{LogisticRegression, LogisticRegressionModel}
+import org.apache.spark.ml.classification.LogisticRegression
 import org.apache.spark.ml.feature.{Binarizer, HashingTF, IDF, RegexTokenizer, StopWordsRemover}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
+import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object Job {
 
   def main(args: Array[String]): Unit = {
-    val path = Config.path
     val spark = initSparkSession()
-    val dataFrame = loadData(spark, path)
 
-    //print statistics about data sets and class distributions
-    println(dataFrame.select())
+    val dataFrame = spark.read
+      .format("json")
+      .load(Config.path)
 
-    val tokenizer = new RegexTokenizer()
-      .setPattern("[\\W_]+")
-      .setToLowercase(true)
-      .setMinTokenLength(4)
-      .setInputCol("text")
-      .setOutputCol("tokenized")
+    //describe(dataFrame)
 
-    val tokenizedDF = tokenizer.transform(dataFrame)
+    val Array(trainDF, testDF) = dataFrame.randomSplit(Array(0.8, 0.2), 42)
 
-    val englishStopWords = StopWordsRemover.loadDefaultStopWords("english")
-    val stops = new StopWordsRemover()
-      .setStopWords(englishStopWords)
-      .setInputCol("tokenized")
+    val model = train(trainDF)
 
-    val cleanedDF = stops.transform(tokenizedDF)
-
-    val tf = new HashingTF()
-      .setInputCol("tokenized")
-      .setOutputCol("TFOut")
-      .setNumFeatures(1000)
-
-    val idf = new IDF()
-      .setInputCol("TFOut")
-      .setOutputCol("IDFOut")
-      .setMinDocFreq(2)
-
-    val tfIdf = idf.fit(tf.transform(cleanedDF)).transform(tf.transform(cleanedDF))
-
-    val lr = new LogisticRegression()
-      .setFeaturesCol("IDFOut")
-      .setLabelCol("positive")
-      .setMaxIter(10)
-
-    val Array(train, test) = tfIdf.randomSplit(Array(0.7, 0.3), 42)
-
-    val fittedLR = lr.fit(train)
-
-    val out = fittedLR.transform(test)
-      .select("prediction", "positive")
-      .rdd
-      .map(x => (x(0).asInstanceOf[Double], x(1).asInstanceOf[Double]))
-
-    val metrics = new BinaryClassificationMetrics(out)
-
-    metrics.precisionByThreshold.foreach { case (t, p) =>
-      println(s"Threshold: $t, Precision: $p")
-    }
-
-    metrics.recallByThreshold.foreach { case (t, r) =>
-      println(s"Threshold: $t, Recall: $r")
-    }
-
+    metrics(model, testDF)
   }
 
   def initSparkSession(): SparkSession = {
@@ -79,31 +34,77 @@ object Job {
     spark
   }
 
-  def loadData(spark: SparkSession, path: String): DataFrame = {
-    val rawDF = spark.read
-      .format("json")
-      .load(path)
+  def describe(dataFrame: DataFrame): Unit = {
+    val binarizer = new Binarizer()
+      .setThreshold(3)
+      .setInputCol("stars")
+      .setOutputCol("positive")
+
+    val binarizered = binarizer.transform(dataFrame)
+
+    val count = binarizered.count()
+    println(s"Total reviews count: $count")
+
+    binarizered.groupBy("positive").count().show()
+  }
+
+  def train(trainDF: DataFrame): PipelineModel = {
+    val regexTokenizer = new RegexTokenizer()
+      .setPattern("[\\W_]+")
+      .setToLowercase(true)
+      .setMinTokenLength(4)
+      .setInputCol("text")
+      .setOutputCol("tokenized")
+
+    val stopWordsRemover = new StopWordsRemover()
+      .setStopWords(StopWordsRemover.loadDefaultStopWords("english"))
+      .setInputCol("tokenized")
 
     val binarizer = new Binarizer()
       .setThreshold(3)
       .setInputCol("stars")
       .setOutputCol("positive")
 
-    val binarizedDF = binarizer.transform(rawDF)
-    val finalDF = binarizedDF.select("text", "positive")
+    val tf = new HashingTF()
+      .setInputCol("tokenized")
+      .setOutputCol("tf_features")
+      .setNumFeatures(5000)
 
-    finalDF
+    val idf = new IDF()
+      .setInputCol("tf_features")
+      .setOutputCol("features")
+      .setMinDocFreq(5)
+
+    val lr = new LogisticRegression()
+      .setFeaturesCol("features")
+      .setLabelCol("positive")
+      .setMaxIter(80)
+
+    val pipeline = new Pipeline()
+      .setStages(Array(regexTokenizer, stopWordsRemover, binarizer, tf, idf, lr))
+
+    val model = pipeline.fit(trainDF)
+    model.write.overwrite().save("spark-logistic-regression-model")
+
+    model
   }
 
-  def describe(sparkSession: SparkSession, dataFrame: DataFrame): Unit = ???
+  def metrics(model: PipelineModel, testDF: DataFrame): Unit = {
+    val out = model.transform(testDF)
+      .select("prediction", "positive")
+      .rdd
+      .map(x => (x(0).asInstanceOf[Double], x(1).asInstanceOf[Double]))
 
-  def tokenize(dataFrame: DataFrame): DataFrame = ???
+    val binaryClassificationMetrics = new BinaryClassificationMetrics(out)
 
-  def vectorize(dataFrame: DataFrame): DataFrame = ???
+    binaryClassificationMetrics.precisionByThreshold.foreach { case (t, p) =>
+      println(s"Threshold: $t, Precision: $p")
+    }
 
-  def trainModel(lr: LogisticRegression, dataFrame: DataFrame): LogisticRegressionModel = ???
+    binaryClassificationMetrics.recallByThreshold.foreach { case (t, r) =>
+      println(s"Threshold: $t, Recall: $r")
+    }
+  }
 
-  def metrics(fittedLR: LogisticRegressionModel): Unit = ???
-  
 }
 
