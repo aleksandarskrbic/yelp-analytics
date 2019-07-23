@@ -15,7 +15,7 @@ object Job {
       .format("json")
       .load(Config.path)
 
-    //describe(dataFrame)
+    describe(dataFrame)
 
     val Array(trainDF, testDF) = dataFrame.randomSplit(Array(0.8, 0.2), 42)
 
