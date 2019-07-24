@@ -20,4 +20,6 @@ object Config {
 
   lazy val checkinPath = root.getString("checkinPath")
 
+  lazy val userPath = root.getString("userPath")
+
 }
