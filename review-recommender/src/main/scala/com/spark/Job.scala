@@ -45,14 +45,14 @@ object Job {
       .setOutputCol("businessId")
 
     val als = new ALS()
-      .setMaxIter(10)
+      .setMaxIter(8)
       .setRegParam(0.2)
       .setNonnegative(true)
       .setColdStartStrategy("drop")
       .setUserCol("userId")
       .setItemCol("businessId")
       .setRatingCol("stars")
-    
+
     val pipeline = new Pipeline()
       .setStages(Array(userIndexer, businessIndexer, als))
 

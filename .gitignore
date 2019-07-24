@@ -4,3 +4,6 @@ review-classifier/project/
 review-recommender/.idea/
 review-recommender/target/
 review-recommender/project/
+etl/.idea/
+etl/target/
+etl/project/
