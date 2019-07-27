@@ -32,7 +32,7 @@ object Job {
     wordCounts(spark, reviewDF, true)
     wordCounts(spark, reviewDF, false)
     userDetails(spark, userDF)
-    
+
   }
 
   def initSparkSession(): SparkSession = {
@@ -124,16 +124,17 @@ object Job {
       .option("header", "true")
       .csv(path)
   }
+
   def userDetails(sparkSession: SparkSession, userDF: DataFrame): Unit = {
     val rdd = userDF.select("user_id", "review_count", "average_stars", "yelping_since", "friends")
       .rdd
       .filter(!_.anyNull)
       .map {
         row => (row(0).asInstanceOf[String],
-          row(1).asInstanceOf[Long],
-          row(2).asInstanceOf[Double],
-          2019 - row(3).asInstanceOf[String].split(" ")(0).split("-")(0).toInt,
-          row(4).asInstanceOf[String].split(",").length)
+                row(1).asInstanceOf[Long],
+                row(2).asInstanceOf[Double],
+                2019 - row(3).asInstanceOf[String].split(" ")(0).split("-")(0).toInt,
+                row(4).asInstanceOf[String].split(",").length)
 
       }
 
@@ -144,8 +145,6 @@ object Job {
       .option("header", "true")
       .csv("data/userDetails")
   }
-
-
 
 }
 
