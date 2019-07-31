@@ -181,13 +181,13 @@ object Job {
       .filter(!_.anyNull)
       .map {
         row => (row(0).asInstanceOf[String],
-          row(1).asInstanceOf[String]
-            .split(",")
-            .map(_.trim.split(" ")(0))
-            .collect { case date: String => date }
-            .filter(!_.isEmpty)
-            .map(LocalDate.parse)
-            .count(Months.monthsBetween(_, LocalDate.now()).getMonths < 12))
+                row(1).asInstanceOf[String]
+                  .split(",")
+                  .map(_.trim.split(" ")(0))
+                  .collect { case date: String => date }
+                  .filter(!_.isEmpty)
+                  .map(LocalDate.parse)
+                  .count(Months.monthsBetween(_, LocalDate.now()).getMonths < 12))
       }
       .filter(_._2 > 5)
 
