@@ -153,7 +153,6 @@ object Job {
                        businessDF: DataFrame,
                        checkinDF: DataFrame,
                        reviewDF: DataFrame): Unit = {
-
     val reviewFilteredRDD = reviewDF.filter("stars > 3")
       .select("review_id", "business_id", "stars", "date")
       .rdd

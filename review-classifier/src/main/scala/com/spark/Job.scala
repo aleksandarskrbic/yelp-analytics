@@ -84,7 +84,7 @@ object Job {
       .setStages(Array(regexTokenizer, stopWordsRemover, binarizer, tf, idf, lr))
 
     val model = pipeline.fit(trainDF)
-    model.write.overwrite().save("spark-logistic-regression-model")
+    model.write.overwrite().save("lr-model")
 
     model
   }
