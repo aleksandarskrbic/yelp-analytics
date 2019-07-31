@@ -1,8 +1,11 @@
 package com.spark
 
+import java.time.Year
+
 import org.apache.spark.ml.feature.StopWordsRemover
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
+import org.joda.time.{LocalDate, Months}
 
 object Job {
 
@@ -32,6 +35,7 @@ object Job {
     wordCounts(spark, reviewDF, true)
     wordCounts(spark, reviewDF, false)
     userDetails(spark, userDF)
+    trendingBusiness(spark, businessDF, checkinDF, reviewDF)
 
   }
 
@@ -133,9 +137,8 @@ object Job {
         row => (row(0).asInstanceOf[String],
                 row(1).asInstanceOf[Long],
                 row(2).asInstanceOf[Double],
-                2019 - row(3).asInstanceOf[String].split(" ")(0).split("-")(0).toInt,
+                Year.now.getValue - row(3).asInstanceOf[String].split(" ")(0).split("-")(0).toInt,
                 row(4).asInstanceOf[String].split(",").length)
-
       }
 
     sparkSession.createDataFrame(rdd)
@@ -144,6 +147,67 @@ object Job {
       .write
       .option("header", "true")
       .csv("data/userDetails")
+  }
+
+  def trendingBusiness(sparkSession: SparkSession,
+                       businessDF: DataFrame,
+                       checkinDF: DataFrame,
+                       reviewDF: DataFrame): Unit = {
+
+    val reviewFilteredRDD = reviewDF.filter("stars > 3")
+      .select("review_id", "business_id", "stars", "date")
+      .rdd
+      .filter(!_.anyNull)
+      .map {
+        row => (row(0).asInstanceOf[String],
+          row(1).asInstanceOf[String],
+          row(2).asInstanceOf[Double],
+          Months.monthsBetween(
+            LocalDate.parse(row(3).asInstanceOf[String].split(" ")(0)),
+            LocalDate.now()).getMonths())
+      }
+      .filter(_._4 < 13)
+
+    val reviewFilteredDF = sparkSession.createDataFrame(reviewFilteredRDD)
+      .toDF("review_id", "business_id", "stars", "months_ago")
+      .groupBy("business_id")
+      .count()
+      .filter("count > 50")
+      .withColumnRenamed("count", "positive_reviews")
+      .withColumnRenamed("business_id", "business_id_r")
+
+
+    val checkinsFilteredRDD = checkinDF.rdd
+      .filter(!_.anyNull)
+      .map {
+        row => (row(0).asInstanceOf[String],
+          row(1).asInstanceOf[String]
+            .split(",")
+            .map(_.trim.split(" ")(0))
+            .collect { case date: String => date }
+            .filter(!_.isEmpty)
+            .map(LocalDate.parse)
+            .count(Months.monthsBetween(_, LocalDate.now()).getMonths < 12))
+      }
+      .filter(_._2 > 5)
+
+    val checkinsFilteredDF = sparkSession.createDataFrame(checkinsFilteredRDD)
+      .toDF("business_id", "checkins")
+      .withColumnRenamed("count", "checkins")
+      .withColumnRenamed("business_id", "business_id_c")
+
+    val joined = reviewFilteredDF.join(checkinsFilteredDF,
+      reviewFilteredDF.col("business_id_r") === checkinsFilteredDF.col("business_id_c"),
+      "left_outer")
+      .join(businessDF.select("business_id", "name", "city"),
+        reviewFilteredDF.col("business_id_r") === businessDF("business_id"),
+        "left_outer")
+      .select("business_id", "name", "city", "positive_reviews", "checkins")
+      .sort(desc("checkins"), desc("positive_reviews"))
+      .coalesce(1)
+      .write
+      .option("header", "true")
+      .csv("data/trendingBusiness")
   }
 
 }
