@@ -57,7 +57,7 @@ object Job {
       .setStages(Array(userIndexer, businessIndexer, als))
 
     val model = pipeline.fit(trainDF)
-    model.write.overwrite().save("spark-als-model")
+    model.write.overwrite().save("als-model")
 
     model
   }

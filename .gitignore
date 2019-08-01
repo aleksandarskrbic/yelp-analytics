@@ -1,9 +1,11 @@
 review-classifier/.idea/
 review-classifier/target/
 review-classifier/project/
+review-classifier/lr-model/
 review-recommender/.idea/
 review-recommender/target/
 review-recommender/project/
+review-recommender/als-model/
 etl/.idea/
 etl/target/
 etl/project/
