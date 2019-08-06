@@ -159,11 +159,11 @@ object Job {
       .filter(!_.anyNull)
       .map {
         row => (row(0).asInstanceOf[String],
-          row(1).asInstanceOf[String],
-          row(2).asInstanceOf[Double],
-          Months.monthsBetween(
-            LocalDate.parse(row(3).asInstanceOf[String].split(" ")(0)),
-            LocalDate.now()).getMonths())
+                row(1).asInstanceOf[String],
+                row(2).asInstanceOf[Double],
+                Months.monthsBetween(
+                  LocalDate.parse(row(3).asInstanceOf[String].split(" ")(0)),
+                  LocalDate.now()).getMonths())
       }
       .filter(_._4 < 13)
 
@@ -174,7 +174,6 @@ object Job {
       .filter("count > 50")
       .withColumnRenamed("count", "positive_reviews")
       .withColumnRenamed("business_id", "business_id_r")
-
 
     val checkinsFilteredRDD = checkinDF.rdd
       .filter(!_.anyNull)
@@ -207,6 +206,10 @@ object Job {
       .write
       .option("header", "true")
       .csv("data/trendingBusiness")
+  }
+
+  def businessStatistics(): Unit = {
+
   }
 
 }

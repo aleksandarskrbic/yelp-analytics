@@ -10,3 +10,4 @@ etl/.idea/
 etl/target/
 etl/project/
 etl/data
+notebooks/.ipynb_checkpoints/
