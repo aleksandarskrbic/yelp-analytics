@@ -36,6 +36,7 @@ object Job {
     wordCounts(spark, reviewDF, false)
     userDetails(spark, userDF)
     trendingBusiness(spark, businessDF, checkinDF, reviewDF)
+    checkinStats(spark, businessDF, checkinDF)
 
   }
 
@@ -107,7 +108,7 @@ object Job {
   def wordCounts(sparkSession: SparkSession, reviewDF: DataFrame, topReviews: Boolean): Unit = {
     val stops = StopWordsRemover.loadDefaultStopWords("english")
 
-    val filterExp = if (topReviews) "stars > 3" else "stars < 4"
+    val filterExp = if (topReviews) "stars > 3" else "stars <= 3"
     val path = if (topReviews) "data/topReviews" else "data/worstReviews"
 
     val rdd = reviewDF.select("text", "stars")
@@ -119,10 +120,10 @@ object Job {
       .map((_, 1))
       .reduceByKey(_ + _)
       .sortBy(_._2, ascending = false)
+      .take(100)
 
     sparkSession.createDataFrame(rdd)
       .toDF("word", "count")
-      .limit(250)
       .coalesce(1)
       .write
       .option("header", "true")
@@ -208,9 +209,44 @@ object Job {
       .csv("data/trendingBusiness")
   }
 
-  def businessStatistics(): Unit = {
+  def checkinStats(sparkSession: SparkSession, businessDF: DataFrame, checkinDF: DataFrame): Unit = {
+    val cs = checkinDF.rdd
+      .filter(!_.anyNull)
+      .map {
+        row => (row(0).asInstanceOf[String],
+                row(1).asInstanceOf[String]
+                  .split(",")
+                  .map(_.trim.split(" ")(0).split("-")(0).toInt)
+                  .groupBy(x => x)
+                  .maxBy(_._2.size)._1,
+                row(1).asInstanceOf[String]
+                  .split(",")
+                  .map(_.trim.split(" ")(0).split("-")(1).toInt)
+                  .groupBy(x => x)
+                  .maxBy(_._2.size)._1,
+                row(1).asInstanceOf[String]
+                  .split(",")
+                  .map(_.trim.split(" ")(0).split("-")(2).toInt)
+                  .groupBy(x => x)
+                  .maxBy(_._2.size)._1,
+                row(1).asInstanceOf[String]
+                  .split(",")
+                  .map(_.trim.split(" ")(1).split(":")(0).toInt)
+                  .groupBy(x => x)
+                  .maxBy(_._2.size)._1)
+      }
 
+    val csDF = sparkSession.createDataFrame(cs)
+      .toDF("business_id_c", "year", "month", "day", "hour")
+
+    csDF.join(businessDF,
+      csDF.col("business_id_c") === businessDF.col("business_id"),
+      "left_outer")
+      .select("business_id", "city", "year", "month", "day", "hour")
+      .coalesce(1)
+      .write
+      .option("header", "true")
+      .csv("data/checkinStats")
   }
-
 }
 
